@@ -1,0 +1,1012 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+
+namespace FinalProject
+{
+    //LOAD INVENTORYY NEEDS FIX!!!!
+    //reciept
+    abstract class InventoryManager // ABSTRACT CLASS
+    {
+        protected List<Balloon> Balloons { get; set; } = new List<Balloon>();
+        protected const int LowStockThreshold = 15;
+        protected const int BalloonPrice = 30;
+        protected string year = DateTime.Now.Year.ToString();
+        protected string month = DateTime.Now.Month.ToString(); 
+        protected int week;
+
+        public abstract void LoadInventory();
+        public abstract void SaveSalesInventory();
+        public abstract void ClearInventory();
+        public abstract void DeleteFile();
+        public abstract void AddBalloonColor();
+        public abstract void DeleteBalloonColor();
+        public abstract void ViewInventory();
+        public abstract void SearchBalloonColor();
+        public abstract void UpdateQuantity();
+        public abstract void SoldQuantities();
+        public abstract void GenerateSalesReport();
+        public abstract void RecieptGenerator();
+    }
+
+    public class Balloon // PUBLIC CLASS BALLOON
+    {
+        public string Color { get; set; }
+        public int Quantity { get; set; }
+        public int TempQuantity { get; set; }
+        public int Sales { get; set; }
+        public int SoldQuantity { get; set; }
+        public DateTime LastSaleDate { get; set; }
+
+        public void DisplayInfo() // DISPLAYS COLOR AND QUANTITY
+        {
+            Console.WriteLine($"| {Color,-15} | {Quantity,9} | {LastSaleDate.ToString("yyyy-MM-dd HH:mm:ss"),-20} |");
+        }
+    }
+
+    class MenuDirection : InventoryManager
+    {
+        public override void LoadInventory() // CREATE AND READ FILE HANDLING
+        {
+            Console.WriteLine("Welcome to Balloon Color Inventory and Sales Tracker System!\n");
+            Console.Write("Which file would you like to load/open, week(1-4): "); 
+            while (!int.TryParse(Console.ReadLine().Trim(), out week) || week > 4 || week < 1) // ERROR HANDLING FOR QUANTITY INPUT
+            {
+                Console.Write("Invalid Input! \nPlease input number 1-4 only: ");
+            }
+            string SalesFilePath = $"C:\\Users\\benideck\\Desktop\\FinalProject\\LongakitBenideck - FinalProject\\WeeklyReports\\{month}-{year}\\SalesReport_week{week}.txt";
+
+            if (!File.Exists(SalesFilePath))
+            {
+                Console.WriteLine($"\nSales file not found. Creating {SalesFilePath}...");
+                try
+                {
+                    using (StreamWriter writer = File.CreateText(SalesFilePath)) //CREATES A FILE IF FILE DOES NOT EXIST
+                    {
+                        writer.WriteLine("File created successfully!");
+                    }
+                    Console.WriteLine("File created successfully!\nPress any key to continue...");
+                }
+
+                catch (Exception e)
+                {
+                    Console.WriteLine("Failed to create to create the file.\nPress any key to continue...");
+                }
+                Console.ReadKey();
+                return;
+            }
+            else
+            {
+                try
+                {
+                    using (StreamReader read = new StreamReader(SalesFilePath)) // USE STREAMREADER FOR READ FILE HANDLING
+                    {
+                        Balloons.Clear(); // CLEAR THE LIST BEFORE LOADING NEW DATA
+
+                        string line;
+                        for (int i = 0; i < 3; i++) // SKIPS THE HEADER LINES
+                        {
+                            read.ReadLine();
+                        }
+
+                        while ((line = read.ReadLine()) != null)
+                        {
+                            var parts = line.Split('|'); // SPLIT LINE INTO PARTS
+
+                            if (parts.Length >= 5) // ENSURE THERE'S ENOUGH PARTS TO READ DATA
+                            {
+                                string color = parts[1].Trim(); // EXTRACT COLOR
+                                int quantity, sales, soldQ;
+                                DateTime lastSaleDate;
+
+                                // CHECK VALIDITY (T - TEST)
+                                bool QuantityT = int.TryParse(parts[2].Trim(), out quantity); // TRIM REMOVES WHITE SPACES
+                                bool SoldQuantityT = int.TryParse(parts[3].Trim(), out soldQ); 
+                                bool SalesT = int.TryParse(parts[4].Trim().Replace("₱", "").Trim(), out sales);
+                                bool DateT = DateTime.TryParse(parts[5].Trim(), out lastSaleDate);
+
+                                if (QuantityT && SalesT && SoldQuantityT && DateT) // TEST IF ALL VARIABLES ARE TRUE
+                                {
+                                    // ADD BALLOON DATA TO THE LIST
+                                    Balloons.Add(new Balloon
+                                    {
+                                        Color = color,
+                                        Quantity = quantity,
+                                        Sales = sales,
+                                        SoldQuantity = soldQ, 
+                                        LastSaleDate = lastSaleDate
+                                    });
+
+                                    // Optional: Display loaded data for debugging
+                                    Console.WriteLine($"Loaded: {color} | Quantity: {quantity} | Sales: {sales} | Sold: {soldQ} | Last Sale Date: {lastSaleDate}");
+                                    Console.WriteLine("Sales data loaded successfully. \nPress any key to continue.");
+                                }
+                                else
+                                {
+                                    Console.WriteLine("File is empty.");
+                                }
+
+                            }
+                        }
+                    }
+                }
+                catch (FileNotFoundException ex)
+                {
+                    Console.WriteLine($"Error: The file '{SalesFilePath}' was not found.");
+                    Console.WriteLine(ex.Message);
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine("Error reading the file.");
+                    Console.WriteLine(ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("An unexpected error occurred.");
+                    Console.WriteLine(ex.Message);
+                }
+            }
+        }
+
+
+        public override void SaveSalesInventory() // FILE HANDLING (SAVE) INSTEAD OF UPDATE - WILL RAD ALL VARIABLES IN THE TABLE
+        {
+            string SalesFilePath = $"C:\\Users\\benideck\\Desktop\\FinalProject\\LongakitBenideck - FinalProject\\WeeklyReports\\{month}-{year}\\SalesReport_week{week}.txt";
+            if (!File.Exists(SalesFilePath))
+            {
+                Console.WriteLine("File does not exist, proceeding to exit..."); 
+                return;
+            }
+            using (StreamWriter write = new StreamWriter(SalesFilePath)) // USE STREAMWRITER FOR WRITE FILE HANDLING
+            {
+                
+                write.WriteLine($"\n-------------------- Sales Report {month}-{year} Week{week} ---------------------");
+                write.WriteLine(" _________________________________________________________________________________");
+                write.WriteLine("| Color           |  Quantity |  Sold Quantity |  Sales    | Last Sale Date       |");
+                write.WriteLine("|-----------------|-----------|----------------|-----------|----------------------|");
+
+                int totalS = 0; // TOTALS --- TOTAL SALES
+                foreach (var balloon in Balloons)
+                {
+                    write.WriteLine($"| {balloon.Color,-15} | {balloon.Quantity,9} | {balloon.SoldQuantity,14} | ₱{balloon.Sales,7}  | {balloon.LastSaleDate.ToString("yyyy-MM-dd HH:mm:ss"),-20} |");
+                    totalS += balloon.Sales;
+                }
+                write.WriteLine("|=================|===========|================|===========|======================|");
+                write.WriteLine($"| Total Sales     |           |                | ₱{totalS,7}  |                      |");
+                write.WriteLine("|_________________|___________|________________|___________|______________________|");
+
+                List<string> lowSA = new List<string>(); // NEW LIST FOR LOW STOCK COLOR BALLOON (Low Stock Alert)
+
+                foreach (Balloon balloon in Balloons)
+                {
+                    if (balloon.Quantity == 0)
+                    {
+                        lowSA.Add($"ALERT!!: Out of stock for {balloon.Color}!");
+                    }
+                    else if (balloon.Quantity < LowStockThreshold)
+                    {
+                        lowSA.Add($"ALERT!!: Low stock for {balloon.Color}!"); // ADD THE LOW STOCK BALLOON TO THE LIST (LOWSTOCKALERTS)
+                    }
+                }
+
+                if (lowSA.Count > 0)
+                {
+                    write.WriteLine("\nList of Low Stock and Out of Stock Colors:");
+                    foreach (string alert in lowSA) // OUTPUT/WRITES THE LOW STOCK BALLOONS INTO THE TXT
+                    {
+                        write.WriteLine(alert);
+                    }
+                }
+            }
+            Console.WriteLine($"Monthly sales report saved to {SalesFilePath}.\n\n");
+        }
+
+        public override void DeleteFile() // DELETE FILE HANDLING
+        {
+            Console.Clear();
+            Console.Write("Which file would you like to delete, week(1-4): ");
+            while (!int.TryParse(Console.ReadLine().Trim(), out week) || week > 4 || week < 1) // ERROR HANDLING FOR QUANTITY INPUT
+            {
+                Console.Write("Invalid Input! \nPlease input number 1-4 only: ");
+            }
+            string SalesFilePath = $"C:\\Users\\benideck\\Desktop\\FinalProject\\LongakitBenideck - FinalProject\\WeeklyReports\\{month}-{year}\\SalesReport_week{week}.txt";
+            string ReceiptFilePath = $"C:\\Users\\benideck\\Desktop\\FinalProject\\LongakitBenideck - FinalProject\\WeeklyReports\\{month}-{year}\\RecieptReport_week{week}.txt";
+            try
+            {
+                File.Delete(SalesFilePath);
+                File.Delete(ReceiptFilePath);
+                Console.WriteLine($"File is deleted successfully.");
+                
+            }
+            catch (FileNotFoundException)
+            {
+                Console.WriteLine($"Error: The file '{SalesFilePath}' does not exist or has already been deleted.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An unexpected error occurred while trying to delete the file.");
+                Console.WriteLine($"Error details: {ex.Message}");
+            }
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
+        }
+
+        public override void ClearInventory() // CLEARS INVENTORY
+        {
+            Console.Clear();
+            Balloons.Clear();
+            Console.WriteLine("Inventory has been cleared...");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
+        }
+
+        public override void AddBalloonColor() // ADD BALLOON COLOR
+        {
+            string color;
+            bool Unique;
+            char ch;
+            bool loop = true;
+
+            do { 
+            Console.Clear();
+
+            //COLOR CHECKING IF THE BALLOON COLOR ALREADY EXIST DESPITE LOWER CASE OR UPPER CASE
+            do
+            {
+                do
+                {
+                    Console.Write("Enter the balloon color: ");
+                     color = Console.ReadLine().Trim(); // REMOVES WHITESPACES
+
+                     if (string.IsNullOrWhiteSpace(color)) // CHECKS IF THE STRING IS ONLY WHITESPACE OR NOT
+                     {
+                         Console.WriteLine("Please enter a valid color. It cannot be empty or just whitespace.\n");
+                     }
+                } while (string.IsNullOrWhiteSpace(color)); // REPEATS IF TRUE
+
+                // TEMPORARY UNIQUE IS TRUE
+                Unique = true;
+
+                foreach (var balloon in Balloons)
+                {
+                    if (balloon.Color.Equals(color, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Unique = false;
+                        Console.WriteLine("Error!! This color already exists. \nPlease enter a different color.\n");
+                        break;
+                    }
+                }
+
+            } while (!Unique);
+
+            Console.Write("Enter the quantity: ");
+            int quantity = 0;
+            while (!int.TryParse(Console.ReadLine().Trim(), out quantity) || quantity < 1) // ERROR HANDLING FOR QUANTITY INPUT
+            {
+                Console.Write("Invalid Input! \nPlease input another stock number: ");
+            }
+
+            //SAVES TO LIST BALLOON
+            Balloons.Add(new Balloon { Color = color, Quantity = quantity, Sales = 0, LastSaleDate = DateTime.MinValue });
+            Console.WriteLine("Balloon color added.");
+
+                do
+                {
+                    Console.Write("\nWould you like to add another color (Y/N)? ");
+                    string input = Console.ReadLine().Trim();
+
+                    // VALIDATES THE INPUT
+                    if (input.Length == 1 && (input[0] == 'Y' || input[0] == 'y' || input[0] == 'N' || input[0] == 'n'))
+                    {
+                        ch = input[0];
+                        if (ch == 'Y' || ch == 'y')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            loop = false;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                    }
+
+                } while (true);
+            } while (loop);
+            Console.WriteLine("Press any key to continue..."); 
+            Console.ReadKey(); 
+        }
+
+        public override void DeleteBalloonColor() // DELETE BALLOON COLOR
+        {
+            bool colorFound = false;
+            string color;
+            bool loop = true;
+            char ch;
+            do
+            {
+                Console.Clear();
+                Console.Clear();
+            Console.WriteLine("----------------- Current Inventory -----------------");
+            Console.WriteLine(" ____________________________________________________");
+            Console.WriteLine("| Color           | Quantity  | Last Sale Date       |");
+            Console.WriteLine("|-----------------|-----------|----------------------|");
+
+            foreach (var balloons in Balloons) //DISPLAYS COLOR, QUANTITY, AND LAST SALE DATA
+            {
+                balloons.DisplayInfo();
+            }
+            Console.WriteLine(" ____________________________________________________\n");
+
+            do
+                {
+                Console.Write("Enter the balloon color to delete: ");
+                color = Console.ReadLine().Trim(); // REMOVES WHITESPACES
+
+                if (string.IsNullOrWhiteSpace(color)) // CHECKS IF THE STRING IS ONLY WHITESPACE OR NOT
+                {
+                    Console.WriteLine("Please enter a valid color. It cannot be empty or just whitespace.\n");
+                }
+            } while (string.IsNullOrWhiteSpace(color)) ; // REPEATS IF TRUE
+            
+            for (int i = 0; i < Balloons.Count; i++)
+            {
+                //COLOR CHECKING IF THE BALLOON COLOR EXIST, DESPITE LOWER CASE OR UPPER CASE
+                if (Balloons[i].Color.Equals(color, StringComparison.OrdinalIgnoreCase))
+                {
+                    Balloons.RemoveAt(i); //REMOVES BALLOON WITH MATCHING COLOR
+                    Console.WriteLine("Balloon color deleted. Press any key to continue...");
+                    colorFound = true;
+                    break;
+                }
+            }
+
+            if (!colorFound)
+            {
+                Console.WriteLine("Color not found. Press any key to continue...");
+            }
+                do
+                {
+                    Console.Write("\nWould you like to delete another color (Y/N)? ");
+                    string input = Console.ReadLine().Trim();
+
+                    // VALIDATES THE INPUT
+                    if (input.Length == 1 && (input[0] == 'Y' || input[0] == 'y' || input[0] == 'N' || input[0] == 'n'))
+                    {
+                        ch = input[0];
+                        if (ch == 'Y' || ch == 'y')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            loop = false;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                    }
+
+                } while (true);
+            } while (loop);
+            Console.WriteLine("Press any key to continue.");
+            Console.ReadKey();
+        }
+
+        public override void ViewInventory() // VIEWS INVENTORY
+        {
+            Console.Clear();
+            Console.WriteLine("----------------- Current Inventory -----------------");
+            Console.WriteLine(" ____________________________________________________");
+            Console.WriteLine("| Color           | Quantity  | Last Sale Date       |");
+            Console.WriteLine("|-----------------|-----------|----------------------|");
+
+            foreach (var balloon in Balloons)  //DISPLAY ALL BALLOON IN INVENTORY
+            {
+                balloon.DisplayInfo();
+            }
+            Console.WriteLine("|_________________|___________|______________________|");
+            Console.WriteLine("Press any key to continue.");
+            Console.ReadKey();
+        }
+
+        public override void SearchBalloonColor() // SEARCH BALLOON COLOR
+        {
+            string color;
+            bool colorFound = false;
+            bool loop = true;
+            char ch; 
+            do 
+            {
+                Console.Clear();
+                do
+                {
+
+                Console.Write("Enter the balloon color to search: ");
+                color = Console.ReadLine().Trim(); // REMOVES WHITESPACES
+
+                if (string.IsNullOrWhiteSpace(color)) // CHECKS IF THE STRING IS ONLY WHITESPACE OR NOT
+                {
+                    Console.WriteLine("Please enter a valid color. It cannot be empty or just whitespace.\n");
+                }
+            } while (string.IsNullOrWhiteSpace(color)); // REPEATS IF TRUE
+
+            foreach (var balloon in Balloons)
+            {
+                if (balloon.Color.Equals(color, StringComparison.OrdinalIgnoreCase)) //CHECKS THE STRING/WORD REGARDLESS OF CASES
+                {
+                    Console.WriteLine(" ____________________________________________________");
+                    Console.WriteLine("| Color           | Quantity  | Last Sale Date       |");
+                    Console.WriteLine("|-----------------|-----------|----------------------|");
+                    balloon.DisplayInfo();
+                    Console.WriteLine("|_________________|___________|______________________|");
+                    colorFound = true;
+                    break;
+                }
+            }
+            if (!colorFound)
+            {
+                Console.WriteLine("Color not found.");
+            }
+                do
+                {
+                    Console.Write("\nWould you like to search another color (Y/N)? ");
+                    string input = Console.ReadLine().Trim();
+
+                    // VALIDATES THE INPUT
+                    if (input.Length == 1 && (input[0] == 'Y' || input[0] == 'y' || input[0] == 'N' || input[0] == 'n'))
+                    {
+                        ch = input[0];
+                        if (ch == 'Y' || ch == 'y')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            loop = false;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                    }
+
+                } while (true);
+            } while (loop);
+            Console.WriteLine("Press any key to continue.");
+            Console.ReadKey();
+        }
+
+        public override void UpdateQuantity() // UPDATES THE COLOR QUANTITY
+        {
+            char ch;
+            bool loop = true; 
+            do
+            {
+                Console.Clear(); 
+                Console.WriteLine("----------------- Current Inventory -----------------");
+                Console.WriteLine(" ____________________________________________________");
+                Console.WriteLine("| Color           | Quantity  | Last Sale Date       |");
+                Console.WriteLine("|-----------------|-----------|----------------------|");
+
+                foreach (var balloons in Balloons) //DISPLAYS COLOR, QUANTITY, AND LAST SALE DATA
+                {
+                    balloons.DisplayInfo();
+                }
+                Console.WriteLine("|_________________|___________|______________________|");
+                string color;
+                do
+                {
+                    Console.Write("Enter the balloon color to update: ");
+                    color = Console.ReadLine().Trim(); // REMOVES WHITESPACES
+
+                    if (string.IsNullOrWhiteSpace(color)) // CHECKS IF THE STRING IS ONLY WHITESPACE OR NOT
+                    {
+                        Console.WriteLine("Please enter a valid color. It cannot be empty or just whitespace.");
+                    }
+                } while (string.IsNullOrWhiteSpace(color)); // REPEATS IF TRUE
+
+                var balloon = Balloons.FirstOrDefault(b => b.Color.Equals(color, StringComparison.OrdinalIgnoreCase)); //USES LINQ SYSTEM
+
+                if (balloon != null)
+                {
+                    Console.Write("Enter the quantity to restock: ");
+                    int resA = 0; //RESA ---  RESTOCK AMOUNT
+                    while (!int.TryParse(Console.ReadLine()?.Trim(), out resA) || resA < 1) //REMOVES WHITESPACES;
+                    {
+                        Console.Write("Invalid input! Please try again: ");
+                    }
+                    balloon.Quantity += resA;
+                    Console.WriteLine("Quantity restocked. Press any key to continue.");
+                    Console.ReadKey();
+                }
+                else
+                {
+                    Console.WriteLine("Color not found.");
+                }
+                do
+                {
+                    Console.Write("\nWould you like to restock another color (Y/N)? ");
+                    string input = Console.ReadLine().Trim();
+
+                    // VALIDATES THE INPUT
+                    if (input.Length == 1 && (input[0] == 'Y' || input[0] == 'y' || input[0] == 'N' || input[0] == 'n'))
+                    {
+                        ch = input[0];
+                        if (ch == 'Y' || ch == 'y')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            loop = false; 
+                            Console.WriteLine("No more restocking.");
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                    }
+
+                } while (true);
+            } while (loop);
+        }
+
+        public override void SoldQuantities() // SELLS QUANTITIES
+        {
+            char ch;
+            string color;
+            bool loop = true;
+            bool CFound = false; //COLOR FOUND
+
+            do
+            {
+            Console.Clear(); 
+            DisplayRT();
+            Console.SetCursorPosition(0, 0);
+            Console.WriteLine("-------------------------- Current Inventory --------------------------");
+            Console.WriteLine(" ______________________________________________________________________");
+            Console.WriteLine("| Color           |  Quantity |  Sold Quantity | Last Sale Date       |");
+            Console.WriteLine("|-----------------|-----------|----------------|----------------------|");
+
+            foreach (var balloon in Balloons)
+            {
+                Console.WriteLine($"| {balloon.Color,-15} | {balloon.Quantity,9} | {balloon.SoldQuantity,14} | {balloon.LastSaleDate.ToString("yyyy-MM-dd HH:mm:ss"),-20} |");
+            }
+            Console.WriteLine("|_________________|___________|________________|______________________|");
+            
+            
+            Console.Write($"Price per piece(Balloon) = {BalloonPrice}.00 Pesos \n");
+                do
+                {
+                    Console.Write("Enter the balloon color to sell: ");
+                    color = Console.ReadLine().Trim(); // REMOVES WHITESPACES
+
+                    if (string.IsNullOrWhiteSpace(color)) // CHECKS IF THE STRING IS ONLY WHITESPACE OR NOT
+                    {
+                        Console.WriteLine("Please enter a valid color. It cannot be empty or just whitespace.\n");
+                    }
+                } while (string.IsNullOrWhiteSpace(color)); // REPEATS IF TRUE
+
+            foreach (var balloon in Balloons)
+            {
+                if (balloon.Color.Equals(color, StringComparison.OrdinalIgnoreCase)) //CHECKS IF COLOR EXIST
+                {
+                    CFound = true;
+
+                    Console.Write("Enter the number of balloons sold: ");
+                    int soldQ = 0;
+
+                    // SHORT ERROR HANDLING
+                    while (!int.TryParse(Console.ReadLine()?.Trim(), out soldQ) || soldQ < 1)
+                    {
+                        Console.Write("Invalid input! Please try again: ");
+                    }
+                        // TEST IF THERE ARE ENOUGH BALLON IN STOCK
+                        if (soldQ <= balloon.Quantity)
+                        {
+                        balloon.Quantity -= soldQ;  // UPDATE QUANTITY
+                        balloon.Sales += soldQ * BalloonPrice; // SAVE SALES (1 BALLOON = 30 PESSOS)
+                        balloon.SoldQuantity += soldQ; // UPDATE QUANTITY TO SAVE IN FILE
+                        balloon.TempQuantity += soldQ; // TEMPORARY QUANTITY (FOR ORDERS)
+                        balloon.LastSaleDate = DateTime.Now;  // UPDATE THE SALE DATE
+                            Console.Clear();
+                            DisplayRT();
+                            Console.SetCursorPosition(0, 0);
+                            Console.WriteLine("-------------------------- Current Inventory --------------------------");
+                            Console.WriteLine(" ______________________________________________________________________");
+                            Console.WriteLine("| Color           |  Quantity |  Sold Quantity | Last Sale Date       |");
+                            Console.WriteLine("|-----------------|-----------|----------------|----------------------|");
+
+                            foreach (var ball in Balloons)
+                            {
+                                Console.WriteLine($"| {ball.Color,-15} | {ball.Quantity,9} | {ball.SoldQuantity,14} | {ball.LastSaleDate.ToString("yyyy-MM-dd HH:mm:ss"),-20} |");
+                            }
+                            Console.WriteLine("|_________________|___________|________________|______________________|");
+                            Console.WriteLine($"{soldQ} balloons sold. Quantity updated and sales recorded.\n\nPress any key to continue...");
+                        Console.ReadKey();
+                        }
+                    else
+                    {
+                        Console.WriteLine("Insufficient quantity available. Press any key to continue...");
+                        Console.ReadKey();
+                    }
+                    break;
+                }
+            }
+
+            if (!CFound)
+            {
+                Console.WriteLine("Color not found.");
+            }
+
+                do
+                {
+                    Console.Write("\nWould you like to sell another color (Y/N)? ");
+                    string input = Console.ReadLine().Trim();
+
+                    // VALIDATES THE INPUT
+                    if (input.Length == 1 && (input[0] == 'Y' || input[0] == 'y' || input[0] == 'N' || input[0] == 'n'))
+                    {
+                        ch = input[0];
+                        if (ch == 'Y' || ch == 'y')
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            do
+                            {
+                                Console.Write("\nWould you like to proceed to receipt (Y/N)? ");
+                                string input2 = Console.ReadLine().Trim();
+                                char ch2;
+                                // VALIDATES THE INPUT
+                                if (input2.Length == 1 && (input2[0] == 'Y' || input2[0] == 'y' || input2[0] == 'N' || input2[0] == 'n'))
+                                {
+                                    ch2 = input2[0];
+                                    if (ch2 == 'Y' || ch2 == 'y')
+                                    {
+                                        RecieptGenerator();
+                                        loop = false;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        loop = false;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                                }
+
+                            } while (true);
+                        }
+                        break;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid input! Please enter 'Y' or 'N' only.");
+                    }
+
+                } while (true);
+            } while (loop);
+        }
+
+        public override void RecieptGenerator()
+        {
+            int totalSales = 0;
+
+            // FILTER THE BALLOONS TO ONLY INCLUDE THOSE THAT HAVE BEEN SOLE (SoldQuantity > 0)
+            var soldBalloons = new List<Balloon>();
+
+            foreach (var balloon in Balloons)
+            {
+                if (balloon.TempQuantity > 0)
+                {
+                    soldBalloons.Add(balloon);
+                }
+            }
+
+            foreach (var balloon in soldBalloons) //COMPUTES TOTAL SALES
+            {
+                int totalSaleForBalloon = balloon.TempQuantity * BalloonPrice;
+                totalSales += totalSaleForBalloon;
+            }
+
+            if (soldBalloons.Count == 0)
+            {
+                Console.WriteLine("No sales have been made yet. No receipt to generate.");
+                return;
+            }
+
+            Console.WriteLine($"\nTotal Amount = {totalSales}.00");
+
+            // ASK THE USER FOR THE AMOUNT OF MONEY THEY ARE PAYING 
+            Console.Write("Enter the name who ordered: ");
+            string name = Console.ReadLine();
+
+            double amountPaid = 0;
+            while (amountPaid <= 0)
+            {
+                Console.Write("Enter the amount you have received: ");
+                while (!double.TryParse(Console.ReadLine(), out amountPaid) || amountPaid <= 0 || amountPaid < totalSales)
+                {
+                    if (amountPaid < totalSales)
+                    {
+                        Console.Write("Insufficient Amount. Please try again: ");
+                    }
+                    else
+                    {
+                        Console.Write("Invalid Input. Please try again: ");
+                    }
+                }
+            }
+            Console.Clear(); 
+
+            // DISPLAYS SALES RECEIPT
+            Console.WriteLine("\n----------------- Order Receipt -----------------");
+            Console.WriteLine($"Ordered by: {name}");
+            Console.WriteLine("Date of Sale: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            Console.WriteLine("------------------------------------------------");
+            Console.WriteLine("| Color           | Quantity Sold |    Amount   |");
+            Console.WriteLine("|-----------------|---------------|-------------|");
+
+            // LOOP THROUGH EACH SOLD BALLOON AND DISPLAY ITS DETAILS
+            foreach (var balloon in soldBalloons)
+            {
+                int totalSaleForBalloon = balloon.TempQuantity * BalloonPrice;
+                Console.WriteLine($"| {balloon.Color,-15} | {balloon.TempQuantity,13} | {totalSaleForBalloon,11} |");
+            }
+            double change = amountPaid - totalSales;
+            Console.WriteLine("------------------------------------------------");
+            Console.WriteLine($"| Total Amount    |               | {totalSales,11} |");
+            Console.WriteLine("------------------------------------------------");
+            Console.WriteLine("|                                               |");
+            Console.WriteLine($"| Amount Received |               | {amountPaid,11} |");
+            Console.WriteLine("------------------------------------------------");
+            Console.WriteLine($"|     Change      |               | {change,11} |");
+            Console.WriteLine("------------------------------------------------");
+
+            string ReceiptFilePath = $"C:\\Users\\benideck\\Desktop\\FinalProject\\LongakitBenideck - FinalProject\\WeeklyReports\\{month}-{year}\\RecieptReport_week{week}.txt";
+            if (!File.Exists(ReceiptFilePath))
+            {
+                Console.WriteLine($"Receipt file not found. Creating {ReceiptFilePath}...");
+                try
+                {
+                    using (StreamWriter writer = File.CreateText(ReceiptFilePath))
+                    {
+                        writer.WriteLine("File created successfully!");
+                    }
+                    Console.WriteLine("File created successfully!");
+                }
+
+                catch (Exception e)
+                {
+                    Console.WriteLine("Failed to create to create the file.");
+                }
+            }
+            try
+            {
+                using (StreamWriter write = File.AppendText(ReceiptFilePath))
+                {
+                    write.WriteLine("----------------- Order Receipt -----------------");
+                    write.WriteLine($"Ordered by: {name}");
+                    write.WriteLine("Date of Sale: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                    write.WriteLine("-------------------------------------------------");
+                    write.WriteLine("| Color           | Quantity Sold |     Amount   |");
+                    write.WriteLine("|-----------------|---------------|--------------|");
+
+                    // WRITE EACH BALLOON'S SALES DETAILS TO THE FILE
+                    foreach (var balloon in soldBalloons)
+                    {
+                        int totalSaleForBalloon = balloon.TempQuantity * BalloonPrice;
+                        write.WriteLine($"| {balloon.Color,-15} | {balloon.TempQuantity,13} | ₱{totalSaleForBalloon,11} |");
+                        totalSales += totalSaleForBalloon;
+                    }
+
+                    write.WriteLine("-------------------------------------------------");
+                    write.WriteLine($"| Total Amount    |               | ₱{totalSales,11} |");
+                    write.WriteLine("-------------------------------------------------");
+                    write.WriteLine("|                                                |");
+                    write.WriteLine($"| Amount Received |               | ₱{amountPaid,11} |");
+                    write.WriteLine("-------------------------------------------------");
+                    write.WriteLine($"|     Change      |               | ₱{change,11} |");
+                    write.WriteLine("-------------------------------------------------\n\n");
+                }
+                Console.WriteLine("\nReceipt saved successfully!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error saving receipt: " + ex.Message);
+            }
+            foreach (var balloon in Balloons)
+            {
+                balloon.TempQuantity = 0;
+            }
+            soldBalloons.Clear();
+            Console.WriteLine("\nPress any key to continue...");
+            Console.ReadKey();
+        }
+
+        public override void GenerateSalesReport() // GENERATE SALES REPORT
+        {
+            Console.Clear();
+            Console.WriteLine("---------------------------------- Sales Report ---------------------------------");
+            Console.WriteLine(" _________________________________________________________________________________");
+            Console.WriteLine("| Color           |  Quantity |  Sold Quantity |  Sales    | Last Sale Date       |");
+            Console.WriteLine("|-----------------|-----------|----------------|-----------|----------------------|");
+
+            int totalS = 0; // TOTALS --- TOTAL SALES
+            foreach (var balloon in Balloons)
+            {
+                Console.WriteLine($"| {balloon.Color,-15} | {balloon.Quantity,9} | {balloon.SoldQuantity,14} | {balloon.Sales,7}   | {balloon.LastSaleDate.ToString("yyyy-MM-dd HH:mm:ss"),-20} |");
+                totalS += balloon.Sales;
+            }
+            Console.WriteLine("|=================|===========|================|===========|======================|");
+            Console.WriteLine($"| Total Sales     |           |                | {totalS,7}   |                      |");
+            Console.WriteLine("|_________________|___________|________________|___________|______________________|");
+            Console.WriteLine("Press any key to continue.");
+            Console.ReadKey();
+        }
+
+        public void DisplayRT() //DISPLAY RIGHT TABLE (FOUND IN YT)
+        {
+            // FILTER THE BALLOONS TO ONLY INCLUDE THOSE THAT HAVE BEEN SOLE (SoldQuantity > 0)
+            var soldBalloons = new List<Balloon>();
+            foreach (var balloon in Balloons)
+            {
+                if (balloon.TempQuantity > 0)
+                {
+                    soldBalloons.Add(balloon);
+                }
+            }
+
+            Console.SetCursorPosition(85, 0);
+            Console.WriteLine("------ Order List ------");
+            Console.SetCursorPosition(85, 1);
+            Console.WriteLine("========================");
+            int tempR = 2; //TEMPORARY ROW
+            foreach (var balloon in soldBalloons) // Access Balloons from MenuDirection
+            {
+                Console.SetCursorPosition(85, tempR++);
+                Console.WriteLine($"| {balloon.Color,7} | {balloon.TempQuantity,10} |");
+            }
+            soldBalloons.Clear(); 
+        }
+        public void DisplayLowStock() //DISPLAY RIGHT TABLE (FOUND IN YT)
+        {
+            List<string> lowSA = new List<string>(); // NEW LIST FOR LOW STOCK COLOR BALLOON (Low Stock Alert)
+            int tempR = 1; //TEMPORARY ROW
+            foreach (Balloon balloon in Balloons)
+            {
+                if (balloon.Quantity == 0)
+                {
+                    lowSA.Add($"ALERT!!: Out of stock for {balloon.Color}!");
+                }
+                else if (balloon.Quantity < LowStockThreshold)
+                {
+                    lowSA.Add($"ALERT!!: Low stock for {balloon.Color}!"); // ADD THE LOW STOCK BALLOON TO THE LIST (LOWSTOCKALERTS)
+                }
+            }
+            if (lowSA.Count > 0)
+            {
+                Console.SetCursorPosition(58, 0);
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine("===================================");
+                foreach (string alert in lowSA) 
+                {
+                    Console.SetCursorPosition(60, tempR++);
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(alert);
+                }
+                Console.SetCursorPosition(58, tempR++);
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine("===================================");
+                Console.ResetColor();
+            }
+        }
+    }
+
+    internal class Program // MAIN PROGRAM
+    {
+        static void Main(string[] args)
+        {
+            bool input = true;
+            int n = 0;
+            MenuDirection inventory = new MenuDirection();
+
+            ConsoleColor[] rainbowColors = new ConsoleColor[] //LIST FOR RAINBOW COLOR STRING (FOUND IN YT)
+             {
+            ConsoleColor.Red, ConsoleColor.DarkYellow, ConsoleColor.Yellow,
+            ConsoleColor.Green, ConsoleColor.Blue, ConsoleColor.Cyan, ConsoleColor.Magenta
+             };
+
+            string title = "RUBBER BALLOON INVENTORY AND SALES TRACKER";
+
+            inventory.LoadInventory();
+            while (input) // USER INPUT
+            {
+                Console.Clear();
+                // Loop through each character in the title
+                for (int i = 0; i < title.Length; i++)
+                {
+                    Console.ForegroundColor = rainbowColors[i % rainbowColors.Length];
+                    Console.Write(title[i]);
+                }
+                Console.ResetColor();
+                inventory.DisplayLowStock();
+                Console.SetCursorPosition(1,0);
+                Console.WriteLine("\n====================================");
+                Console.WriteLine("1 - Add Balloon Color");
+                Console.WriteLine("2 - Delete Balloon Inventory");
+                Console.WriteLine("3 - View Inventory");
+                Console.WriteLine("4 - Search Balloon Color");
+                Console.WriteLine("5 - Update Quantity");
+                Console.WriteLine("6 - Sold Quantities");
+                Console.WriteLine("7 - Sales Report");
+                Console.WriteLine("8 - Clear Inventory");
+                Console.WriteLine("9 - Delete a file");
+                Console.WriteLine("0 - Exit");
+                Console.WriteLine("====================================");
+
+                Console.Write("Enter the number of your choice: ");
+                while (!int.TryParse(Console.ReadLine().Trim(), out n) || n < 0 || n > 9)
+                {
+                    Console.Write("Please input #(0-9) only: ");
+                }
+
+                switch (n)
+                {
+                    case 1:
+                        inventory.AddBalloonColor();
+                        break;
+                    case 2:
+                        inventory.DeleteBalloonColor();
+                        break;
+                    case 3:
+                        inventory.ViewInventory();
+                        break;
+                    case 4:
+                        inventory.SearchBalloonColor();
+                        break;
+                    case 5:
+                        inventory.UpdateQuantity();
+                        break;
+                    case 6:
+                        inventory.SoldQuantities();
+                        break;
+                    case 7:
+                        inventory.GenerateSalesReport();
+                        break;
+                    case 8:
+                        inventory.ClearInventory();
+                        break;
+                    case 9:
+                        inventory.DeleteFile();
+                        break;
+                    case 0:
+                        inventory.SaveSalesInventory(); // SAVES SALES REPORT
+                        input = false;
+                        break;
+                
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
