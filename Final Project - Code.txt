@@ -6,8 +6,6 @@ using System.Linq;
 
 namespace FinalProject
 {
-    //LOAD INVENTORYY NEEDS FIX!!!!
-    //reciept
     abstract class InventoryManager // ABSTRACT CLASS
     {
         protected List<Balloon> Balloons { get; set; } = new List<Balloon>();
